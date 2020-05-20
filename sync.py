@@ -1,3 +1,4 @@
+import os
 import boto3
 from pathlib import Path
 
@@ -12,7 +13,7 @@ class S3Sync:
                         aws_access_key_id="2dff69e63984445c819a1a3c3328bf8b",
                         aws_secret_access_key="9bbe336440c94b079a19bb7b89aec749")
 
-    def sync(self, source, dest):
+    def sync_to(self, source, dest):
         """
         Sync source to dest, this means that all elements existing in
         source that not exists in dest will be copied to dest.
@@ -26,17 +27,39 @@ class S3Sync:
         """
 
         paths = self.list_source_objects(source_folder=source)
-        print paths
         
         objects = self.list_bucket_objects(dest)
         object_keys = [obj['Key'] for obj in objects]
-        print object_keys
         
         diff_keys = set(paths) - set(object_keys)
-        print diff_keys
-
+        
         for path in diff_keys:
             self._s3.upload_file(Filename=str(Path(source).joinpath(path)),  Bucket=dest, Key=path)
+
+    def sync_from(self, source, dest):
+        """
+        Sync source to dest, this means that all elements existing in
+        source that not exists in dest will be copied to dest.
+
+        No element will be deleted.
+
+        :param source: Source folder.
+        :param dest: Destination folder.
+
+        :return: None
+        """
+
+        paths = self.list_source_objects(source_folder=dest)
+        
+        objects = self.list_bucket_objects(source)
+        object_keys = [obj['Key'] for obj in objects]
+        
+        diff_keys = set(object_keys) - set(paths)
+
+        for path in diff_keys:
+            if not os.path.exists(os.path.dirname(str(Path(dest).joinpath(path)))):
+                os.makedirs(os.path.dirname(str(Path(dest).joinpath(path))))
+            self._s3.download_file(Bucket=source, Key=path, Filename=str(Path(dest).joinpath(path)))
 
     def list_bucket_objects(self, bucket):
         """
@@ -103,4 +126,5 @@ class S3Sync:
 
 if __name__ == '__main__':
     sync = S3Sync()
-    sync.sync("/root/image-builder/botos3/media", "news")
+    sync.sync_from("news", "/root/image-builder/botos3/media")
+    #sync.sync_to("/root/image-builder/botos3/media", "news")
